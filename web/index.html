@@ -1,0 +1,207 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Draggable and Resizable Rectangles</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            overflow: hidden;
+        }
+        .rectangle {
+            position: absolute;
+            width: 100px;
+            height: 100px;
+            background-color: #f0f0f0;
+            border: 2px solid #333;
+            cursor: move;
+        }
+        .resize-handle {
+            position: absolute;
+            width: 8px;
+            height: 8px;
+            background-color: #233;
+        }
+
+        #rectangle1 {
+            top: 50px;
+            left: 50px;
+        }
+
+        #rectangle2 {
+            top: 200px;
+            left: 200px;
+        }
+
+        #rectangle1 .resize-handle-top-left {
+            cursor: nw-resize;
+            top: -10px;
+            left: -10px;
+        }
+
+        #rectangle1 .resize-handle-bottom-right {
+            cursor: se-resize;
+            bottom: -10px;
+            right: -10px;
+        }
+
+        #rectangle2 .resize-handle-top-left {
+            cursor: nw-resize;
+            top: -10px;
+            left: -10px;
+        }
+
+        #rectangle2 .resize-handle-bottom-right {
+            cursor: se-resize;
+            bottom: -10px;
+            right: -10px;
+        }
+    </style>
+</head>
+<body>
+    <div class="rectangle" id="rectangle1">
+        <div class="resize-handle resize-handle-top-left"></div>
+        <div class="resize-handle resize-handle-bottom-right"></div>
+    </div>
+    <div class="rectangle" id="rectangle2">
+        <div class="resize-handle resize-handle-top-left"></div>
+        <div class="resize-handle resize-handle-bottom-right"></div>
+    </div>
+
+    <script>
+        const webSocket_pos = new WebSocket('ws://localhost:9090/position');
+
+        webSocket_pos.onopen = function(event) {
+            console.log('WebSocket connection opened');
+        };
+
+        webSocket_pos.onclose = function(event) {
+            console.log('WebSocket connection closed');
+        };
+
+        webSocket_pos.onerror = function(event) {
+            console.log('WebSocket error');
+        };
+
+        webSocket_pos.onmessage = function(event) {
+            const result = JSON.parse(event.data);
+
+            const is_collision = result.is_collision;
+            if (is_collision) {
+                document.getElementById("rectangle1").style.backgroundColor = "red";
+                document.getElementById("rectangle2").style.backgroundColor = "red";
+            } else {
+                document.getElementById("rectangle1").style.backgroundColor = "#f0f0f0";
+                document.getElementById("rectangle2").style.backgroundColor = "#f0f0f0";
+            }
+        };
+
+        function sendRectanglePosition() {
+       
+            const rectangle1 = document.getElementById("rectangle1");
+            const rectangle2 = document.getElementById("rectangle2");
+
+            const position1 = {
+                top: rectangle1.offsetTop,
+                left: rectangle1.offsetLeft,
+                width: rectangle1.offsetWidth,
+                height: rectangle1.offsetHeight
+            };
+
+            const position2 = {
+                top: rectangle2.offsetTop,
+                left: rectangle2.offsetLeft,
+                width: rectangle2.offsetWidth,
+                height: rectangle2.offsetHeight
+            };
+
+            const position = {
+                rectangle1: position1,
+                rectangle2: position2
+            };
+
+            webSocket_pos.send(JSON.stringify(position));
+        }
+
+        
+        function makeResizable(element) {
+            let startX, startY, startWidth, startHeight;
+            let isResizing = false; 
+
+            const resizeHandleTopLeft = element.querySelector(".resize-handle-top-left");
+            const resizeHandleBottomRight = element.querySelector(".resize-handle-bottom-right");
+
+            resizeHandleTopLeft.addEventListener("mousedown", initResize, false);
+            resizeHandleBottomRight.addEventListener("mousedown", initResize, false);
+            document.documentElement.addEventListener("mouseup", stopResize, false);
+
+            function initResize(e) {
+                startX = e.clientX;
+                startY = e.clientY;
+                startWidth = parseInt(document.defaultView.getComputedStyle(element).width, 10);
+                startHeight = parseInt(document.defaultView.getComputedStyle(element).height, 10);
+
+                isResizing = true;
+            }
+
+            function doResize(e) {
+                if(!isResizing) return;
+                element.style.width = (startWidth + e.clientX - startX) + "px";
+                element.style.height = (startHeight + e.clientY - startY) + "px";
+            }
+
+            function stopResize() {
+                isResizing = false;
+                sendRectanglePosition();
+            }
+
+            document.documentElement.addEventListener("mousemove", doResize, false);
+        }
+
+        function makeDraggable(element) {
+            let pos1 = 0, pos2 = 0, pos3 = 0, pos4 = 0;
+
+            element.addEventListener("mousedown", dragMouseDown, false);
+
+            function dragMouseDown(e) {
+                e = e || window.event;
+                e.preventDefault();
+                pos3 = e.clientX;
+                pos4 = e.clientY;
+                document.documentElement.addEventListener("mousemove", elementDrag, false);
+                document.documentElement.addEventListener("mouseup", closeDragElement, false);
+            }
+
+            function elementDrag(e) {
+                e = e || window.event;
+                e.preventDefault();
+                pos1 = pos3 - e.clientX;
+                pos2 = pos4 - e.clientY;
+                pos3 = e.clientX;
+                pos4 = e.clientY;
+                element.style.top = (element.offsetTop - pos2) + "px";
+                element.style.left = (element.offsetLeft - pos1) + "px";
+            }
+
+            function closeDragElement() {
+                document.documentElement.removeEventListener("mousemove", elementDrag, false);
+                document.documentElement.removeEventListener("mouseup", closeDragElement, false);
+
+                sendRectanglePosition();
+            }
+        }
+
+        const rectangle1 = document.getElementById("rectangle1");
+        const rectangle2 = document.getElementById("rectangle2");
+
+        makeDraggable(rectangle1);
+        makeDraggable(rectangle2);
+
+        makeResizable(rectangle1);
+        makeResizable(rectangle2);
+    </script>
+</body>
+</html>
+
